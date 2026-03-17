@@ -1,0 +1,67 @@
+name: Build Wii (devkitPPC)
+
+on:
+  push:
+    branches: [ dev, main ]
+  pull_request:
+    branches: [ dev, main ]
+  workflow_dispatch:
+
+jobs:
+  build-wii:
+    name: Build Minecraft.Client.dol
+    runs-on: ubuntu-latest
+    container:
+      image: devkitpro/devkitppc:latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - name: Install wii-dev packages
+        run: |
+          dkp-pacman -Sy --noconfirm wii-dev
+
+      - name: Unzip Wii platform layer
+        run: |
+          unzip -o wii_platform_files.zip
+          echo "Unzipped files:"
+          find Minecraft.Client/Platform/Wii -type f | sort
+          ls Makefile.wii
+
+      - name: Generate assets (strings.h, MediaLinux.arc, etc.)
+        run: |
+          python3 scripts/pack_loc.py \
+            Minecraft.Assets/Windows64Media/loc \
+            build_wii/assets/languages.loc \
+            build_wii/assets/strings.h
+          python3 scripts/build_col.py \
+            Minecraft.Assets/Common/Media/HTMLColours.xml \
+            build_wii/assets/HTMLColours.col
+          python3 scripts/pack_arc.py \
+            build_wii/assets/MediaLinux.arc \
+            build_wii/assets/languages.loc \
+            build_wii/assets/HTMLColours.col \
+            Minecraft.Assets/Common/Media/splashes.txt \
+            Minecraft.Assets/Common/Media/Graphics/SaveChest.png \
+            Minecraft.Assets/Common/Media/Graphics/MinecraftIcon.png \
+            Minecraft.Assets/Common/Media/Graphics/TexturePackIcon.png \
+            $(find Minecraft.Assets/Common/Media -name "*.swf") \
+            $(find Minecraft.Assets/Windows64Media/Media -name "*.swf") \
+            Minecraft.Assets/Windows64Media/Media/Tutorial.pck
+
+      - name: Build
+        run: |
+          export DEVKITPRO=/opt/devkitpro
+          export DEVKITPPC=/opt/devkitpro/devkitPPC
+          export PATH=$DEVKITPPC/bin:$DEVKITPRO/tools/bin:$PATH
+          make -f Makefile.wii -j$(nproc)
+
+      - name: Upload .dol artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Minecraft-Wii-dol
+          path: build_wii/bin/Minecraft.Client.dol
+          if-no-files-found: error
