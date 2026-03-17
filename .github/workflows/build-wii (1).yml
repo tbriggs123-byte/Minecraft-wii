@@ -22,9 +22,7 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: dev
-
+        
       - name: Install wii-dev packages
         run: dkp-pacman -Sy --noconfirm wii-dev
 
